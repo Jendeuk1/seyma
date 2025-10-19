@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Countdown — For Şeyma</title>
+  <style>
+    :root{--bg:#ffdde1;--card:#ffb6c1;--accent:#e75480;--muted:#b56576}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#071028 0%, #0b1220 100%);font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;color:#e6eef8;display:flex;align-items:center;justify-content:center;padding:24px}
+    .wrap{max-width:920px;width:100%;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:16px;padding:28px;box-shadow:0 10px 30px rgba(2,6,23,0.6);backdrop-filter:blur(6px)}
+    header{display:flex;align-items:center;gap:16px}
+    .avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#ff6bcb);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#071028}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:6px 0 18px;color:var(--muted)}
+    .countdown{display:flex;gap:12px;justify-content:center;align-items:center;margin:18px 0}
+    .unit{background:rgba(255,255,255,0.03);padding:14px 18px;border-radius:12px;min-width:84px;text-align:center}
+    .number{font-size:36px;font-weight:700;line-height:1}
+    .label{font-size:12px;color:var(--muted);margin-top:6px}
+    .controls{display:flex;gap:8px;justify-content:center;margin-top:18px}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:10px;color:inherit;cursor:pointer}
+    .small{font-size:13px;padding:6px 10px}
+    .note{font-size:13px;color:var(--muted);text-align:center;margin-top:12px}
+    .celebrate{display:none;text-align:center;padding:20px}
+    #confetti-canvas{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none}
+    footer{margin-top:14px;text-align:center;color:var(--muted);font-size:13px}
+    .edit-area{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}
+    input[type="datetime-local"]{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+    .msg{font-size:18px;font-weight:700}
+    @media (max-width:520px){.number{font-size:28px}.unit{min-width:64px;padding:12px}}
+  </style>
+</head>
+<body>
+  <!--
+    ====== QUICK SETUP ======
+    1) Edit TARGET_DATE below (ISO string) OR use the on-page picker to set the date/time.
+    2) Optionally change MESSAGE to show when countdown hits zero.
+    3) Upload this file to a GitHub repo and enable GitHub Pages (see footer for steps).
+  -->
+
+  <div class="wrap" role="main">
+    <header>
+      <div class="avatar">Ş</div>
+      <div>
+        <h1>Countdown for Şeyma</h1>
+    </header>
+
+    <div style="text-align:center;margin-top:6px">
+      <div class="countdown" aria-live="polite">
+        <div class="unit"><div id="days" class="number">0</div><div class="label">Days</div></div>
+        <div class="unit"><div id="hours" class="number">0</div><div class="label">Hours</div></div>
+        <div class="unit"><div id="minutes" class="number">0</div><div class="label">Minutes</div></div>
+        <div class="unit"><div id="seconds" class="number">0</div><div class="label">Seconds</div></div>
+      </div>
+
+      <div class="edit-area">
+        <label for="targetPicker" class="visually-hidden">Target date</label>
+        <input id="targetPicker" type="datetime-local" />
+        <button id="setBtn" class="small">Set</button>
+        <button id="copyBtn" class="small">Copy Link</button>
+      </div>
+
+      <div class="controls">
+        <button id="toggleTZ" class="small">Show local timezone</button>
+        <button id="resetBtn" class="small">Reset</button>
+      </div>
+
+      <div class="note">Target time: <span id="targetDisplay">Not set</span></div>
+
+      <div class="celebrate" id="celebrate">
+        <div class="msg">Happy Birthday, Şeyma 🎉</div>
+        <p class="note">Play music, show the video, or surprise her — it started!</p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <script>
+    // ====== CONFIG (edit here if you want a hardcoded date) ======
+    // Example ISO: '2025-12-08T00:00:00' (local time of viewer)
+    let TARGET_DATE = '2025-10-21T00:00:00'; // leave null to require the user/picker to set it
+    let MESSAGE = 'Happy Birthday, Şeyma!';
+    // ============================================================
+
+    const daysEl = document.getElementById('days');
+    const hoursEl = document.getElementById('hours');
+    const minutesEl = document.getElementById('minutes');
+    const secondsEl = document.getElementById('seconds');
+    const targetDisplay = document.getElementById('targetDisplay');
+    const celebrate = document.getElementById('celebrate');
+    const targetPicker = document.getElementById('targetPicker');
+
+    // load from URL param if present (so you can share a link)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('target')) {
+      TARGET_DATE = urlParams.get('target');
+      // for picker compatibility, try to set picker value
+      try { targetPicker.value = TARGET_DATE.replace('Z',''); } catch(e){}
+    }
+
+    function setTargetFromPicker(){
+      const val = targetPicker.value;
+      if (!val) return;
+      // the input returns local datetime (no timezone) -> treat as local
+      const iso = val;
+      TARGET_DATE = iso;
+      // update URL so it can be shared
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('target', TARGET_DATE);
+      window.history.replaceState({},'',newUrl);
+      updateTargetDisplay();
+    }
+
+    document.getElementById('setBtn').addEventListener('click', ()=>{ setTargetFromPicker(); start(); });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ TARGET_DATE = null; celebrate.style.display='none'; targetDisplay.textContent='Not set'; window.history.replaceState({},'',location.pathname); stopConfetti(); });
+
+    document.getElementById('copyBtn').addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(window.location.href);
+        alert('Link copied — share it with Şeyma!');
+      }catch(e){ prompt('Copy this link', window.location.href); }
+    });
+
+    document.getElementById('toggleTZ').addEventListener('click', ()=>{
+      alert('This page treats the chosen date/time as the viewer\'s local time. To use a fixed timezone, edit the file and set an ISO string with a timezone offset.');
+    });
+
+    function updateTargetDisplay(){
+      if (!TARGET_DATE){ targetDisplay.textContent='Not set'; return; }
+      // show raw value
+      targetDisplay.textContent = TARGET_DATE;
+    }
+
+    // ===== Countdown logic =====
+    let interval = null;
+    function start(){
+      if (!TARGET_DATE) return;
+      updateTargetDisplay();
+      if (interval) clearInterval(interval);
+      interval = setInterval(tick, 250);
+      tick();
+    }
+
+    function tick(){
+      if (!TARGET_DATE) return;
+      // handle both bare ISO and yyyy-mm-ddThh:mm formats
+      let target = TARGET_DATE;
+      // If date has no timezone marker, the Date constructor treats it as local in most browsers.
+      const t = new Date(target);
+      const now = new Date();
+      const diff = t - now;
+      if (isNaN(diff)) { targetDisplay.textContent = 'Invalid date'; return; }
+      if (diff <= 0){
+        daysEl.textContent = '0'; hoursEl.textContent='0'; minutesEl.textContent='0'; secondsEl.textContent='0';
+        celebrate.style.display='block';
+        startConfetti();
+        clearInterval(interval);
+        return;
+      }
+      const sec = Math.floor(diff/1000)%60;
+      const min = Math.floor(diff/1000/60)%60;
+      const hrs = Math.floor(diff/1000/60/60)%24;
+      const days = Math.floor(diff/1000/60/60/24);
+      daysEl.textContent = days;
+      hoursEl.textContent = hrs;
+      minutesEl.textContent = min;
+      secondsEl.textContent = sec;
+    }
+
+    // ===== Simple confetti (no external libs) ======
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const ctx = confettiCanvas.getContext('2d');
+    let confettiPieces = [];
+    function resizeCanvas(){ confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+    function rand(min,max){ return Math.random()*(max-min)+min }
+    function createConfetti(){
+      confettiPieces = [];
+      const count = Math.min(200, Math.floor(window.innerWidth/6));
+      for(let i=0;i<count;i++){
+        confettiPieces.push({x:rand(0,confettiCanvas.width), y:rand(-confettiCanvas.height,0), vx:rand(-2,2), vy:rand(2,6), size:rand(6,12), rot:rand(0,360), dr:rand(-6,6) });
+      }
+      renderConfetti();
+    }
+    let confettiAnim = null;
+    function renderConfetti(){
+      ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+      confettiPieces.forEach(p=>{
+        ctx.save();
+        ctx.translate(p.x,p.y);
+        ctx.rotate(p.rot*Math.PI/180);
+        ctx.fillStyle = `hsl(${(p.x+p.y)%360} 90% 60%)`;
+        ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+        ctx.restore();
+        p.x += p.vx; p.y += p.vy; p.rot += p.dr*0.3;
+        if (p.y>confettiCanvas.height+20){ p.y = rand(-confettiCanvas.height,0); p.x = rand(0,confettiCanvas.width); }
+      });
+      confettiAnim = requestAnimationFrame(renderConfetti);
+    }
+    function startConfetti(){ createConfetti(); }
+    function stopConfetti(){ if(confettiAnim) cancelAnimationFrame(confettiAnim); ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); }
+
+    // start automatically if TARGET_DATE is already set
+    updateTargetDisplay();
+    if (TARGET_DATE) start();
+
+    // If user pastes a date into the picker, also allow pressing Enter
+    targetPicker.addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ setTargetFromPicker(); start(); } });
+
+    // Accessibility: focus handlers
+    document.getElementById('setBtn').addEventListener('keyup',(e)=>{ if (e.key==='Enter') { setTargetFromPicker(); start(); } });
+
+  </script>
+</body>
+</html>
